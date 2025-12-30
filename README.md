@@ -81,7 +81,6 @@ ______________________________________________________________________
 - **Project Coordinator & Vision** // [@VaKovaLskii](https://t.me/neuraldeep)
 - **Lead Core Developer** // [@virrius](https://t.me/virrius_tech)
 - **API Development** // [@EvilFreelancer](https://t.me/evilfreelancer)
-- **Hybrid FC research** // [@Shadekss](https://t.me/Shadekss)
 - **DevOps & Deployment** // [@mixaill76](https://t.me/mixaill76)
 
 If you have any questions - feel free to join our [community chat](https://t.me/sgragentcore)↗️ or reach out [Valerii Kovalskii](https://www.linkedin.com/in/vakovalskii/)↗️.
