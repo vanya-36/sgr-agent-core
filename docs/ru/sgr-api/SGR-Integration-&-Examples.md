@@ -101,6 +101,45 @@ if clarification_questions and agent_id:
 print("\n\nИсследование завершено!")
 ```
 
+### Пример 3: Исследовательский запрос с изображением
+
+Отправка исследовательского запроса с локальным файлом изображения.
+
+```python
+import base64
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8010/v1", api_key="dummy")
+
+# Прочитать локальный файл изображения и закодировать в base64
+with open("chart.png", "rb") as image_file:
+    image_data = base64.b64encode(image_file.read()).decode("utf-8")
+    image_base64 = f"data:image/png;base64,{image_data}"
+
+# Исследовательский запрос с локальным изображением
+response = client.chat.completions.create(
+    model="sgr-agent",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Проанализируй этот график и исследуй показанные тренды"},
+            {"type": "image_url", "image_url": {"url": image_base64}}
+        ]
+    }],
+    stream=True,
+    temperature=0.4,
+)
+
+# Вывести потоковый ответ
+for chunk in response:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="")
+```
+
+**Поддерживаемые форматы изображений:**
+- URL изображений (HTTP/HTTPS)
+- Изображения в формате Base64 (`data:image/jpeg;base64,...` или `data:image/png;base64,...`)
+
 #### Примечания по использованию
 
 - Замените `localhost:8010` на URL вашего сервера

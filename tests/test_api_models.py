@@ -14,42 +14,10 @@ from sgr_agent_core.server.models import (
     ChatCompletionChoice,
     ChatCompletionRequest,
     ChatCompletionResponse,
-    ChatMessage,
     ClarificationRequest,
     HealthResponse,
+    MessagesList,
 )
-
-
-class TestChatMessage:
-    """Tests for ChatMessage model."""
-
-    def test_chat_message_creation(self):
-        """Test creating a chat message with valid data."""
-        message = ChatMessage(role="user", content="Hello, world!")
-        assert message.role == "user"
-        assert message.content == "Hello, world!"
-
-    def test_chat_message_default_role(self):
-        """Test that default role is 'user'."""
-        message = ChatMessage(content="Test message")
-        assert message.role == "user"
-
-    def test_chat_message_all_roles(self):
-        """Test all valid message roles."""
-        roles = ["system", "user", "assistant", "tool"]
-        for role in roles:
-            message = ChatMessage(role=role, content="Test")
-            assert message.role == role
-
-    def test_chat_message_invalid_role(self):
-        """Test that invalid role raises validation error."""
-        with pytest.raises(ValidationError):
-            ChatMessage(role="invalid_role", content="Test")
-
-    def test_chat_message_required_content(self):
-        """Test that content is required."""
-        with pytest.raises(ValidationError):
-            ChatMessage(role="user")
 
 
 class TestChatCompletionRequest:
@@ -57,14 +25,14 @@ class TestChatCompletionRequest:
 
     def test_chat_completion_request_creation(self):
         """Test creating a chat completion request."""
-        messages = [ChatMessage(role="user", content="Hello")]
+        messages = [{"role": "user", "content": "Hello"}]
         request = ChatCompletionRequest(messages=messages)
         assert len(request.messages) == 1
-        assert request.messages[0].content == "Hello"
+        assert request.messages[0]["content"] == "Hello"
 
     def test_chat_completion_request_defaults(self):
         """Test default values for chat completion request."""
-        messages = [ChatMessage(role="user", content="Test")]
+        messages = [{"role": "user", "content": "Test"}]
         request = ChatCompletionRequest(messages=messages)
         assert request.model == "sgr_tool_calling_agent"
         assert request.stream is True
@@ -73,7 +41,7 @@ class TestChatCompletionRequest:
 
     def test_chat_completion_request_custom_values(self):
         """Test custom values for chat completion request."""
-        messages = [ChatMessage(role="user", content="Test")]
+        messages = [{"role": "user", "content": "Test"}]
         request = ChatCompletionRequest(
             model="custom_model",
             messages=messages,
@@ -94,12 +62,45 @@ class TestChatCompletionRequest:
     def test_chat_completion_request_multiple_messages(self):
         """Test request with multiple messages."""
         messages = [
-            ChatMessage(role="system", content="You are a helpful assistant"),
-            ChatMessage(role="user", content="Hello"),
-            ChatMessage(role="assistant", content="Hi there!"),
+            {"role": "system", "content": "You are a helpful assistant"},
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
         ]
         request = ChatCompletionRequest(messages=messages)
         assert len(request.messages) == 3
+
+    def test_chat_completion_request_multimodal_message(self):
+        """Test request with multimodal message (text and image)."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What's in this image?"},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc123"}},
+                ],
+            }
+        ]
+        request = ChatCompletionRequest(messages=messages)
+        assert len(request.messages) == 1
+        assert isinstance(request.messages[0]["content"], list)
+        assert len(request.messages[0]["content"]) == 2
+
+    def test_chat_completion_request_validation_list_of_dicts(self):
+        """Test that messages validator accepts list of dicts."""
+        messages = [{"role": "user", "content": "Test"}]
+        request = ChatCompletionRequest(messages=messages)
+        assert isinstance(request.messages, MessagesList)
+        assert isinstance(request.messages[0], dict)
+
+    def test_chat_completion_request_validation_rejects_non_list(self):
+        """Test that messages validator rejects non-list."""
+        with pytest.raises(ValidationError):
+            ChatCompletionRequest(messages="not a list")
+
+    def test_chat_completion_request_validation_rejects_non_dict_items(self):
+        """Test that messages validator rejects non-dict items."""
+        with pytest.raises(ValidationError):
+            ChatCompletionRequest(messages=["not a dict"])
 
 
 class TestChatCompletionResponse:
@@ -109,7 +110,7 @@ class TestChatCompletionResponse:
         """Test creating a chat completion response."""
         choice = ChatCompletionChoice(
             index=0,
-            message=ChatMessage(role="assistant", content="Response"),
+            message={"role": "assistant", "content": "Response"},
             finish_reason="stop",
         )
         response = ChatCompletionResponse(
@@ -128,7 +129,7 @@ class TestChatCompletionResponse:
         """Test response with usage information."""
         choice = ChatCompletionChoice(
             index=0,
-            message=ChatMessage(role="assistant", content="Response"),
+            message={"role": "assistant", "content": "Response"},
             finish_reason="stop",
         )
         usage = {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
@@ -144,15 +145,15 @@ class TestChatCompletionResponse:
 
     def test_chat_completion_choice_structure(self):
         """Test ChatCompletionChoice structure."""
-        message = ChatMessage(role="assistant", content="Test response")
+        message = {"role": "assistant", "content": "Test response"}
         choice = ChatCompletionChoice(
             index=0,
             message=message,
             finish_reason="stop",
         )
         assert choice.index == 0
-        assert choice.message.role == "assistant"
-        assert choice.message.content == "Test response"
+        assert choice.message["role"] == "assistant"
+        assert choice.message["content"] == "Test response"
         assert choice.finish_reason == "stop"
 
 
@@ -179,7 +180,7 @@ class TestAgentStateResponse:
         """Test creating an agent state response."""
         response = AgentStateResponse(
             agent_id="agent_123",
-            task="Research task",
+            task_messages=[{"role": "user", "content": "Research task"}],
             state="researching",
             iteration=5,
             searches_used=3,
@@ -187,7 +188,8 @@ class TestAgentStateResponse:
             sources_count=10,
         )
         assert response.agent_id == "agent_123"
-        assert response.task == "Research task"
+        assert len(response.task_messages) == 1
+        assert response.task_messages[0]["content"] == "Research task"
         assert response.state == "researching"
         assert response.iteration == 5
         assert response.searches_used == 3
@@ -198,7 +200,7 @@ class TestAgentStateResponse:
         """Test agent state response with optional fields."""
         response = AgentStateResponse(
             agent_id="agent_123",
-            task="Research task",
+            task_messages=[{"role": "user", "content": "Research task"}],
             state="completed",
             iteration=10,
             searches_used=5,
@@ -214,7 +216,7 @@ class TestAgentStateResponse:
         """Test that optional fields default to None."""
         response = AgentStateResponse(
             agent_id="agent_123",
-            task="Test",
+            task_messages=[{"role": "user", "content": "Test"}],
             state="inited",
             iteration=0,
             searches_used=0,
@@ -223,6 +225,24 @@ class TestAgentStateResponse:
         )
         assert response.current_step_reasoning is None
         assert response.execution_result is None
+
+    def test_agent_state_response_multiple_messages(self):
+        """Test agent state response with multiple task messages."""
+        response = AgentStateResponse(
+            agent_id="agent_123",
+            task_messages=[
+                {"role": "system", "content": "You are a researcher"},
+                {"role": "user", "content": "Research quantum computing"},
+            ],
+            state="researching",
+            iteration=1,
+            searches_used=0,
+            clarifications_used=0,
+            sources_count=0,
+        )
+        assert len(response.task_messages) == 2
+        assert response.task_messages[0]["role"] == "system"
+        assert response.task_messages[1]["role"] == "user"
 
 
 class TestAgentListItem:
@@ -235,19 +255,20 @@ class TestAgentListItem:
         now = datetime.now()
         item = AgentListItem(
             agent_id="agent_123",
-            task="Research quantum computing",
+            task_messages=[{"role": "user", "content": "Research quantum computing"}],
             state="researching",
             creation_time=now,
         )
         assert item.agent_id == "agent_123"
-        assert item.task == "Research quantum computing"
+        assert len(item.task_messages) == 1
+        assert item.task_messages[0]["content"] == "Research quantum computing"
         assert item.state == "researching"
         assert item.creation_time == now
 
     def test_agent_list_item_required_fields(self):
         """Test that all fields are required."""
         with pytest.raises(ValidationError):
-            AgentListItem(agent_id="agent_123", task="Test")
+            AgentListItem(agent_id="agent_123", task_messages=[{"role": "user", "content": "Test"}])
 
 
 class TestAgentListResponse:
@@ -261,13 +282,13 @@ class TestAgentListResponse:
         items = [
             AgentListItem(
                 agent_id="agent_1",
-                task="Task 1",
+                task_messages=[{"role": "user", "content": "Task 1"}],
                 state="completed",
                 creation_time=now,
             ),
             AgentListItem(
                 agent_id="agent_2",
-                task="Task 2",
+                task_messages=[{"role": "user", "content": "Task 2"}],
                 state="researching",
                 creation_time=now,
             ),
@@ -290,7 +311,7 @@ class TestAgentListResponse:
         items = [
             AgentListItem(
                 agent_id="agent_1",
-                task="Task 1",
+                task_messages=[{"role": "user", "content": "Task 1"}],
                 state="completed",
                 creation_time=now,
             )
@@ -306,15 +327,270 @@ class TestClarificationRequest:
 
     def test_clarification_request_creation(self):
         """Test creating a clarification request."""
-        request = ClarificationRequest(clarifications="Here are my answers: 1. Yes 2. No 3. Maybe")
-        assert request.clarifications == "Here are my answers: 1. Yes 2. No 3. Maybe"
+        content = "Here are my answers: 1. Yes 2. No 3. Maybe"
+        request = ClarificationRequest(messages=[{"role": "user", "content": content}])
+        assert len(request.messages) == 1
+        assert request.messages[0]["content"] == content
 
     def test_clarification_request_required_field(self):
-        """Test that clarifications field is required."""
+        """Test that messages field is required."""
         with pytest.raises(ValidationError):
             ClarificationRequest()
 
-    def test_clarification_request_empty_string(self):
-        """Test clarification request with empty string."""
-        request = ClarificationRequest(clarifications="")
-        assert request.clarifications == ""
+    def test_clarification_request_empty_list(self):
+        """Test clarification request with empty list."""
+        request = ClarificationRequest(messages=[])
+        assert request.messages == []
+
+    def test_clarification_request_multiple_messages(self):
+        """Test clarification request with multiple messages."""
+        request = ClarificationRequest(
+            messages=[
+                {"role": "user", "content": "Answer 1: Yes"},
+                {"role": "user", "content": "Answer 2: No"},
+            ]
+        )
+        assert len(request.messages) == 2
+        assert request.messages[0]["content"] == "Answer 1: Yes"
+        assert request.messages[1]["content"] == "Answer 2: No"
+
+    def test_clarification_request_with_system_message(self):
+        """Test clarification request with system message."""
+        request = ClarificationRequest(
+            messages=[
+                {"role": "system", "content": "Context for clarification"},
+                {"role": "user", "content": "My clarification"},
+            ]
+        )
+        assert len(request.messages) == 2
+        assert request.messages[0]["role"] == "system"
+        assert request.messages[1]["role"] == "user"
+
+
+class TestMessagesListTruncation:
+    """Tests for MessagesList base64 image URL truncation."""
+
+    def test_truncate_long_base64_image_url(self):
+        """Test that long base64 image URLs are truncated to 200 characters."""
+        long_base64 = "data:image/png;base64," + "A" * 500  # 500 characters after prefix
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What's in this image?"},
+                    {"type": "image_url", "image_url": {"url": long_base64}},
+                ],
+            }
+        ]
+        messages_list = MessagesList(root=messages)
+
+        # Serialize to trigger truncation
+        serialized = messages_list.model_dump()
+
+        # Check that URL was truncated
+        image_url = serialized[0]["content"][1]["image_url"]["url"]
+        assert len(image_url) == MessagesList.MAX_BASE64_LENGTH + len("...[truncated]")
+        assert image_url.endswith("...[truncated]")
+        assert image_url.startswith("data:image/png;base64,")
+
+    def test_short_base64_image_url_not_truncated(self):
+        """Test that short base64 image URLs are not truncated."""
+        short_base64 = "data:image/png;base64,abc123"  # Short URL
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": short_base64}},
+                ],
+            }
+        ]
+        messages_list = MessagesList(root=messages)
+
+        # Serialize to trigger truncation logic
+        serialized = messages_list.model_dump()
+
+        # Check that URL was not truncated (still original)
+        image_url = serialized[0]["content"][0]["image_url"]["url"]
+        assert image_url == short_base64
+        assert len(image_url) < MessagesList.MAX_BASE64_LENGTH
+        assert not image_url.endswith("...[truncated]")
+
+    def test_multiple_images_truncated(self):
+        """Test that multiple images in different messages are truncated."""
+        long_base64_1 = "data:image/png;base64," + "B" * 300
+        long_base64_2 = "data:image/jpeg;base64," + "C" * 400
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": long_base64_1}},
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": "I see the images",
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Another image"},
+                    {"type": "image_url", "image_url": {"url": long_base64_2}},
+                ],
+            },
+        ]
+        messages_list = MessagesList(root=messages)
+
+        serialized = messages_list.model_dump()
+
+        # First image should be truncated
+        assert len(serialized[0]["content"][0]["image_url"]["url"]) == MessagesList.MAX_BASE64_LENGTH + len(
+            "...[truncated]"
+        )
+        assert serialized[0]["content"][0]["image_url"]["url"].endswith("...[truncated]")
+
+        # Second message (text only) should be unchanged
+        assert serialized[1]["content"] == "I see the images"
+
+        # Third message's image should be truncated
+        assert len(serialized[2]["content"][1]["image_url"]["url"]) == MessagesList.MAX_BASE64_LENGTH + len(
+            "...[truncated]"
+        )
+        assert serialized[2]["content"][1]["image_url"]["url"].endswith("...[truncated]")
+
+    def test_text_content_not_affected(self):
+        """Test that text content is not affected by truncation."""
+        long_base64 = "data:image/png;base64," + "D" * 500
+        text_content = "A" * 1000  # Long text content
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text_content},
+                    {"type": "image_url", "image_url": {"url": long_base64}},
+                ],
+            }
+        ]
+        messages_list = MessagesList(root=messages)
+
+        serialized = messages_list.model_dump()
+
+        # Text should be unchanged
+        assert serialized[0]["content"][0]["text"] == text_content
+        assert len(serialized[0]["content"][0]["text"]) == 1000
+
+        # Image URL should be truncated
+        assert len(serialized[0]["content"][1]["image_url"]["url"]) == MessagesList.MAX_BASE64_LENGTH + len(
+            "...[truncated]"
+        )
+        assert serialized[0]["content"][1]["image_url"]["url"].endswith("...[truncated]")
+
+    def test_string_content_not_affected(self):
+        """Test that string content (non-list) is not affected."""
+        messages = [
+            {
+                "role": "user",
+                "content": "This is a simple text message with no images",
+            }
+        ]
+        messages_list = MessagesList(root=messages)
+
+        serialized = messages_list.model_dump()
+
+        # String content should be unchanged
+        assert serialized[0]["content"] == "This is a simple text message with no images"
+
+    def test_missing_content_handled_gracefully(self):
+        """Test that missing content field is handled gracefully."""
+        messages = [
+            {
+                "role": "user",
+                # Missing content field
+            }
+        ]
+        messages_list = MessagesList(root=messages)
+
+        # Should not raise an exception
+        serialized = messages_list.model_dump()
+        assert "content" not in serialized[0] or serialized[0].get("content") is None
+
+    def test_empty_content_list_handled(self):
+        """Test that empty content list is handled gracefully."""
+        messages = [
+            {
+                "role": "user",
+                "content": [],
+            }
+        ]
+        messages_list = MessagesList(root=messages)
+
+        serialized = messages_list.model_dump()
+        assert serialized[0]["content"] == []
+
+    def test_non_image_url_types_not_affected(self):
+        """Test that non-image_url content types are not affected."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Some text"},
+                    {"type": "other_type", "data": "some data"},
+                ],
+            }
+        ]
+        messages_list = MessagesList(root=messages)
+
+        serialized = messages_list.model_dump()
+
+        # Both entries should be unchanged
+        assert serialized[0]["content"][0]["text"] == "Some text"
+        assert serialized[0]["content"][1]["data"] == "some data"
+
+    def test_exact_200_characters_not_truncated(self):
+        """Test that exactly 200 characters are not truncated (boundary
+        case)."""
+        # Create URL with exactly 200 chars total
+        prefix = "data:image/png;base64,"
+        base64_part = "X" * (MessagesList.MAX_BASE64_LENGTH - len(prefix))
+        exact_200_url = prefix + base64_part
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": exact_200_url}},
+                ],
+            }
+        ]
+        messages_list = MessagesList(root=messages)
+
+        serialized = messages_list.model_dump()
+
+        # Should NOT be truncated (exactly at the limit)
+        image_url = serialized[0]["content"][0]["image_url"]["url"]
+        assert image_url == exact_200_url
+        assert len(image_url) == MessagesList.MAX_BASE64_LENGTH
+        assert not image_url.endswith("...[truncated]")
+
+    def test_201_characters_truncated(self):
+        """Test that 201 characters are truncated (boundary case)."""
+        # Create URL with exactly 201 chars (one over the limit)
+        prefix = "data:image/png;base64,"
+        base64_part = "X" * (MessagesList.MAX_BASE64_LENGTH - len(prefix) + 1)
+        over_200_url = prefix + base64_part
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": over_200_url}},
+                ],
+            }
+        ]
+        messages_list = MessagesList(root=messages)
+
+        serialized = messages_list.model_dump()
+
+        # Should be truncated to MAX_BASE64_LENGTH + "...[truncated]"
+        image_url = serialized[0]["content"][0]["image_url"]["url"]
+        assert len(image_url) == MessagesList.MAX_BASE64_LENGTH + len("...[truncated]")
+        assert image_url.endswith("...[truncated]")
