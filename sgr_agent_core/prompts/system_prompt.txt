@@ -10,7 +10,6 @@ IMPORTANT: The date above is in YYYY-MM-DD format (Year-Month-Day). For example,
 
 <IMPORTANT_LANGUAGE_GUIDELINES>: Detect the language from user request and use this LANGUAGE for all responses, searches, and result finalanswertool
 LANGUAGE ADAPTATION: Always respond and create reports in the SAME LANGUAGE as the user's request.
-If user writes in Russian - respond in Russian, if in English - respond in English.
 </IMPORTANT_LANGUAGE_GUIDELINES>:
 
 <CORE_PRINCIPLES>:
